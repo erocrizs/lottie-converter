@@ -8,6 +8,7 @@ const player = document.querySelector("#lottie-player").player;
 const sprites = document.querySelector("#sprites");
 const btnLoad = document.querySelector("#load");
 const btnConvert = document.querySelector("#convert");
+const btnDownload = document.querySelector("#download");
 const inputSpriteName = document.querySelector("#sprite-name");
 const inputLottieUrl = document.querySelector("#lottieUrl");
 const inputWidth = document.querySelector("#width");
@@ -105,6 +106,8 @@ const convert = async () => {
               img.style.margin = '2px';
               img.style.cursor = 'pointer';
               img.title = `Frame ${f} - Click to download`;
+              img.className = 'sprite-frame';
+              img.dataset.frame = f;
               
               // Add click handler to download the image
               img.addEventListener('click', () => {
@@ -147,6 +150,7 @@ const convert = async () => {
   player.addEventListener("load", listener);
 
   log(`Startng animation...`);
+  btnDownload.disabled = false;
   player.load({
     autoplay: false,
     loop: false,
@@ -181,6 +185,7 @@ if (btnLoad) {
 
     cancelled = false;
     btnConvert.disabled = false;
+    btnDownload.disabled = true;
     inputOWidth.value = lottieDetails.width;
     inputOHeight.value = lottieDetails.height;
     inputWidth.value = lottieDetails.width;
@@ -258,5 +263,27 @@ if (inputFps) {
     inputFrames.value = newFrameCount;
     lottieDetails.newFrames = newFrameCount;
     lottieDetails.frameMapping = newFrames;
+  });
+}
+
+if (btnDownload) {
+  btnDownload.addEventListener("click", async () => {
+    const zip = new JSZip();
+    const sprites = Array.from(document.querySelectorAll(".sprite-frame"));
+    await Promise.all(sprites.map(sprite => {
+      return fetch(sprite.src)
+        .then(response => response.blob())
+        .then(blob => {
+          zip.file(`${inputSpriteName.value}_${sprite.dataset.frame}.png`, blob);
+        });
+    }));
+    zip.generateAsync({ type: "blob" }).then(content => {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `${inputSpriteName.value}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
   });
 }
