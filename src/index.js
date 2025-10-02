@@ -1,6 +1,8 @@
 let converting = false;
 let cancelled = false;
 let lottieDetails = null;
+let frameSrc = {};
+let previewInterval = null;
 
 const logContainer = document.querySelector("#logs");
 const playerCanvas = document.querySelector("#lottie-player");
@@ -20,6 +22,7 @@ const inputOFps = document.querySelector("#o-fps");
 const inputFps = document.querySelector("#fps");
 const inputOFrames = document.querySelector("#o-frames");
 const inputFrames = document.querySelector("#frames");
+const preview = document.querySelector("#preview");
 
 const log = message => {
   const msgElem = document.createElement("p");
@@ -63,6 +66,16 @@ const frameMapping = (sourceFrames, targetFrames) => {
 }
 
 const convert = async () => {
+  Object.values(frameSrc).forEach(url => 
+    URL.revokeObjectURL(url)
+  );
+  frameSrc = {};
+  preview.style.display = 'none';
+  if (previewInterval) {
+    clearInterval(previewInterval);
+    previewInterval = null;
+  }
+
   if (converting) {
     cancelled = true;
     converting = false;
@@ -121,10 +134,10 @@ const convert = async () => {
                 
                 // Remove the image after download
                 img.remove();
-                URL.revokeObjectURL(url);
               });
               sprites.appendChild(img);
               log(`Frame ${f}: Created blob URI and img element`);
+              frameSrc[f] = url;
               resolve();
             } else {
               log(`Frame ${f}: Failed to create blob`);
@@ -144,6 +157,19 @@ const convert = async () => {
     player.setLoop(true);
     player.setFrame(0);
     player.play();
+    previewInterval = (() => {
+      let currentFrame = 0;
+      preview.src = frameSrc[0];
+      const interval = 1000 / inputFps.value;
+      log(`Preview interval: ${interval}ms`);
+      return setInterval(() => {
+        currentFrame = (currentFrame + 1) % lottieDetails.newFrames;
+        preview.src = frameSrc[currentFrame];
+      }, interval);
+    })();
+    preview.style.display = 'block';
+    preview.width = inputWidth.value;
+    preview.height = inputHeight.value;
   }
 
   // Load into player
@@ -198,6 +224,16 @@ if (btnLoad) {
     inputFps.value = lottieDetails.fps;
     inputOFrames.value = lottieDetails.frames;
     inputFrames.value = lottieDetails.frames;
+    
+    Object.values(frameSrc).forEach(url => 
+      URL.revokeObjectURL(url)
+    );
+    frameSrc = {};
+    preview.style.display = 'none';
+    if (previewInterval) {
+      clearInterval(previewInterval);
+      previewInterval = null;
+    }
   });
 }
 
