@@ -275,10 +275,15 @@ const getLottieDetails = async url => {
     height: json.h,
     width: json.w,
     frames: json.op - json.ip + 1,
-    newFrames: json.op - json.ip + 1,
-    frameMapping: frameMapping(json.op - json.ip + 1, json.op - json.ip + 1),
     fps: json.fr
   };
+
+  const duration = lottieDetails.frames / lottieDetails.fps;
+  log("duration " + duration)
+  const newFrameCount = Math.floor(duration * inputFps.value);
+  log("newFrameCount " + newFrameCount)
+  lottieDetails.newFrames = newFrameCount;
+  lottieDetails.frameMapping =  frameMapping(lottieDetails.frames, newFrameCount);
 };
 
 if (btnLoad) {
@@ -296,16 +301,10 @@ if (btnLoad) {
     selectedFrames.clear();
     inputOWidth.value = lottieDetails.width;
     inputOHeight.value = lottieDetails.height;
-    inputWidth.value = lottieDetails.width;
-    inputHeight.value = lottieDetails.height;
-    playerCanvas.width = lottieDetails.width;
-    playerCanvas.height = lottieDetails.height;
-    playerCanvas.player.resize();
-    inputScale.value = 1;
+    inputScale.value = inputWidth.value / lottieDetails.width;
     inputOFps.value = lottieDetails.fps;
-    inputFps.value = lottieDetails.fps;
     inputOFrames.value = lottieDetails.frames;
-    inputFrames.value = lottieDetails.frames;
+    inputFrames.value = lottieDetails.newFrames;
     updateDownloadButton();
     
     Object.values(frameSrc).forEach(url => 
