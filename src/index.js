@@ -405,7 +405,7 @@ if (btnDownload) {
     zip.generateAsync({ type: "blob" }).then(content => {
       const link = document.createElement("a");
       link.href = URL.createObjectURL(content);
-      link.download = `${inputSpriteName.value}_selected.zip`;
+      link.download = `${inputSpriteName.value}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
