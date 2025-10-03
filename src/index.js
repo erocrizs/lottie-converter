@@ -3,6 +3,7 @@ let cancelled = false;
 let lottieDetails = null;
 let frameSrc = {};
 let previewInterval = null;
+let selectedFrames = new Set();
 
 const logContainer = document.querySelector("#logs");
 const playerCanvas = document.querySelector("#lottie-player");
@@ -61,8 +62,57 @@ const frameMapping = (sourceFrames, targetFrames) => {
       mapping[i] = Math.min(sourceFrame, sourceFrames - 1);
     }
   }
-  
+
   return mapping;
+}
+
+const toggleFrameSelection = (frameNumber) => {
+  if (selectedFrames.has(frameNumber)) {
+    selectedFrames.delete(frameNumber);
+  } else {
+    selectedFrames.add(frameNumber);
+  }
+  updateDownloadButton();
+  updatePreview();
+}
+
+const updateDownloadButton = () => {
+  if (btnDownload) {
+    btnDownload.disabled = selectedFrames.size === 0;
+  }
+}
+
+const updateFrameVisualState = (imgElement, frameNumber) => {
+  if (selectedFrames.has(frameNumber)) {
+    imgElement.style.border = '2px solid #007bff';
+    imgElement.style.boxShadow = '0 0 5px rgba(0, 123, 255, 0.5)';
+  } else {
+    imgElement.style.border = '2px solid #ccc';
+    imgElement.style.boxShadow = 'none';
+  }
+}
+
+const updatePreview = () => {
+  if (previewInterval) {
+    clearInterval(previewInterval);
+    previewInterval = null;
+  }
+  
+  if (selectedFrames.size === 0) {
+    preview.style.display = 'none';
+    return;
+  }
+  
+  const selectedFramesArray = Array.from(selectedFrames).sort((a, b) => a - b);
+  let currentFrameIndex = 0;
+  preview.src = frameSrc[selectedFramesArray[0]];
+  preview.style.display = 'block';
+  
+  const interval = 1000 / inputFps.value;
+  previewInterval = setInterval(() => {
+    currentFrameIndex = (currentFrameIndex + 1) % selectedFramesArray.length;
+    preview.src = frameSrc[selectedFramesArray[currentFrameIndex]];
+  }, interval);
 }
 
 const convert = async () => {
@@ -70,11 +120,13 @@ const convert = async () => {
     URL.revokeObjectURL(url)
   );
   frameSrc = {};
+  selectedFrames.clear();
   preview.style.display = 'none';
   if (previewInterval) {
     clearInterval(previewInterval);
     previewInterval = null;
   }
+  updateDownloadButton();
 
   if (converting) {
     cancelled = true;
@@ -115,15 +167,40 @@ const convert = async () => {
               img.src = url;
               img.style.width = '100px';
               img.style.height = '100px';
-              img.style.border = '1px solid red';
+              img.style.border = '2px solid #ccc';
               img.style.margin = '2px';
               img.style.cursor = 'pointer';
-              img.title = `Frame ${f} - Click to download`;
+              img.style.transition = 'border-color 0.2s ease';
+              img.title = `Frame ${f} - Click to select/deselect`;
               img.className = 'sprite-frame';
               img.dataset.frame = f;
               
-              // Add click handler to download the image
+              // Add click handler to toggle selection
               img.addEventListener('click', () => {
+                toggleFrameSelection(f);
+                updateFrameVisualState(img, f);
+              });
+              
+              // Create container for frame and download button
+              const frameContainer = document.createElement('div');
+              frameContainer.style.display = 'inline-block';
+              frameContainer.style.margin = '2px';
+              frameContainer.style.textAlign = 'center';
+              
+              // Create download button for this frame
+              const downloadBtn = document.createElement('button');
+              downloadBtn.textContent = 'Download';
+              downloadBtn.style.fontSize = '10px';
+              downloadBtn.style.padding = '2px 6px';
+              downloadBtn.style.margin = '2px 0';
+              downloadBtn.style.cursor = 'pointer';
+              downloadBtn.style.border = '1px solid #ccc';
+              downloadBtn.style.borderRadius = '3px';
+              downloadBtn.style.backgroundColor = '#f8f9fa';
+              
+              // Add download functionality
+              downloadBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent frame selection when clicking download
                 const spriteName = inputSpriteName.value || 'sprite';
                 const link = document.createElement('a');
                 link.href = url;
@@ -131,11 +208,22 @@ const convert = async () => {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
-                // Remove the image after download
-                img.remove();
               });
-              sprites.appendChild(img);
+              
+              // Add hover effects
+              downloadBtn.addEventListener('mouseenter', () => {
+                downloadBtn.style.backgroundColor = '#e9ecef';
+              });
+              downloadBtn.addEventListener('mouseleave', () => {
+                downloadBtn.style.backgroundColor = '#f8f9fa';
+              });
+              
+              // Assemble the frame container
+              frameContainer.appendChild(img);
+              frameContainer.appendChild(document.createElement('br'));
+              frameContainer.appendChild(downloadBtn);
+              
+              sprites.appendChild(frameContainer);
               log(`Frame ${f}: Created blob URI and img element`);
               frameSrc[f] = url;
               resolve();
@@ -157,19 +245,13 @@ const convert = async () => {
     player.setLoop(true);
     player.setFrame(0);
     player.play();
-    previewInterval = (() => {
-      let currentFrame = 0;
-      preview.src = frameSrc[0];
-      const interval = 1000 / inputFps.value;
-      log(`Preview interval: ${interval}ms`);
-      return setInterval(() => {
-        currentFrame = (currentFrame + 1) % lottieDetails.newFrames;
-        preview.src = frameSrc[currentFrame];
-      }, interval);
-    })();
-    preview.style.display = 'block';
+    
+    // Set preview dimensions
     preview.width = inputWidth.value;
     preview.height = inputHeight.value;
+    
+    // Initialize download button as disabled
+    updateDownloadButton();
   }
 
   // Load into player
@@ -211,7 +293,7 @@ if (btnLoad) {
 
     cancelled = false;
     btnConvert.disabled = false;
-    btnDownload.disabled = true;
+    selectedFrames.clear();
     inputOWidth.value = lottieDetails.width;
     inputOHeight.value = lottieDetails.height;
     inputWidth.value = lottieDetails.width;
@@ -224,6 +306,7 @@ if (btnLoad) {
     inputFps.value = lottieDetails.fps;
     inputOFrames.value = lottieDetails.frames;
     inputFrames.value = lottieDetails.frames;
+    updateDownloadButton();
     
     Object.values(frameSrc).forEach(url => 
       URL.revokeObjectURL(url)
@@ -304,19 +387,26 @@ if (inputFps) {
 
 if (btnDownload) {
   btnDownload.addEventListener("click", async () => {
+    if (selectedFrames.size === 0) return;
+    
     const zip = new JSZip();
-    const sprites = Array.from(document.querySelectorAll(".sprite-frame"));
-    await Promise.all(sprites.map(sprite => {
-      return fetch(sprite.src)
-        .then(response => response.blob())
-        .then(blob => {
-          zip.file(`${inputSpriteName.value}_${sprite.dataset.frame}.png`, blob);
-        });
+    const selectedFramesArray = Array.from(selectedFrames).sort((a, b) => a - b);
+    
+    await Promise.all(selectedFramesArray.map(frameNumber => {
+      const sprite = document.querySelector(`[data-frame="${frameNumber}"]`);
+      if (sprite) {
+        return fetch(sprite.src)
+          .then(response => response.blob())
+          .then(blob => {
+            zip.file(`${inputSpriteName.value}_${frameNumber}.png`, blob);
+          });
+      }
     }));
+    
     zip.generateAsync({ type: "blob" }).then(content => {
       const link = document.createElement("a");
       link.href = URL.createObjectURL(content);
-      link.download = `${inputSpriteName.value}.zip`;
+      link.download = `${inputSpriteName.value}_selected.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
